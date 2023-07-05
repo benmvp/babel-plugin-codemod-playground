@@ -71,7 +71,7 @@ const MyComponent = () => {
 
     const MyComponent = () => {
       const isFullWidth = true;
-      return <Button width="full">Go</Button>;
+      return <Button width={isFullWidth ? "full" : undefined}>Go</Button>;
     };"
   `);
 });
@@ -116,7 +116,7 @@ const MyComponent = () => {
     const MyComponent = () => {
       const isFullWidth = false;
 
-      return <Button>Go</Button>;
+      return <Button width={isFullWidth ? "full" : undefined}>Go</Button>;
 
     };"
   `);
@@ -180,7 +180,7 @@ const MyComponent = () => {
 
     const MyComponent = () => {
       const isInline = true;
-      return <Button width="fit">Go</Button>;
+      return <Button width={isInline ? "fit" : undefined}>Go</Button>;
     };"
   `);
 });
@@ -225,7 +225,7 @@ const MyComponent = () => {
     const MyComponent = () => {
       const isInline = false;
 
-      return <Button>Go</Button>;
+      return <Button width={isInline ? "fit" : undefined}>Go</Button>;
 
     };"
   `);

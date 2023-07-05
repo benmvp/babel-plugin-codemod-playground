@@ -1,68 +1,89 @@
 import { type NodePath, type PluginObj, types as t } from '@babel/core';
 
-const getBooleanValueFromScope = (path: NodePath, name: string) => {
-  const binding = path.scope.getBinding(name);
+const transformWidth = (
+  path: NodePath<t.JSXElement>,
+  oldName: string,
+  newWidthValue: string,
+) => {
+  path
+    .get('openingElement')
+    .get('attributes')
+    .filter(
+      (attributePath): attributePath is NodePath<t.JSXAttribute> =>
+        t.isJSXAttribute(attributePath.node) &&
+        t.isJSXIdentifier(attributePath.node.name) &&
+        attributePath.node.name.name === oldName,
+    )
+    .forEach((attributePath) => {
+      const getNewAttribute = () => {
+        const attribute = attributePath.node;
 
-  if (binding) {
-    const { node } = binding.path;
-    if (t.isVariableDeclarator(node) && t.isBooleanLiteral(node.init)) {
-      return node.init.value;
-    }
-  }
+        // If the attribute is a boolean and `true` or just exists (implicit
+        // `true`), then replace it with the new `width` prop
+        if (
+          attribute.value === null ||
+          (t.isJSXExpressionContainer(attribute.value) &&
+            t.isBooleanLiteral(attribute.value.expression) &&
+            attribute.value.expression.value === true)
+        ) {
+          return t.jSXAttribute(
+            t.jsxIdentifier('width'),
+            t.stringLiteral(newWidthValue),
+          );
+        }
 
-  return undefined;
-};
+        // Remove the attribute if it's a boolean and `false`
+        if (
+          t.isJSXExpressionContainer(attribute.value) &&
+          t.isBooleanLiteral(attribute.value.expression) &&
+          attribute.value.expression.value === false
+        ) {
+          return null;
+        }
 
-const getJSXAttributeValue = (attribute: t.JSXAttribute) => {
-  if (
-    t.isJSXExpressionContainer(attribute.value) &&
-    t.isBooleanLiteral(attribute.value.expression)
-  ) {
-    return attribute.value.expression.value;
-  }
+        // Use a ternary if it's a variable identifier instead of trying to read
+        // scope and figure out if it's `true` or `false`
+        if (
+          t.isJSXExpressionContainer(attribute.value) &&
+          t.isIdentifier(attribute.value.expression)
+        ) {
+          return t.jSXAttribute(
+            t.jsxIdentifier('width'),
+            t.jsxExpressionContainer(
+              t.conditionalExpression(
+                t.identifier(attribute.value.expression.name),
+                t.stringLiteral(newWidthValue),
+                t.identifier('undefined'),
+              ),
+            ),
+          );
+        }
+      };
 
-  return undefined;
+      const newAttribute = getNewAttribute();
+
+      if (newAttribute === null) {
+        attributePath.remove();
+      } else if (newAttribute) {
+        attributePath.replaceWith(newAttribute);
+      } else {
+        // we couldn't figure out what to do! leave a comment?
+      }
+    });
 };
 
 const buttonTransform = (): PluginObj => ({
   visitor: {
-    JSXOpeningElement(path) {
-      const { node } = path;
-      const { attributes } = node;
+    JSXElement(path) {
+      if (
+        !t.isJSXIdentifier(path.node.openingElement.name) ||
+        path.node.openingElement.name.name !== 'Button'
+      ) {
+        return;
+      }
 
-      attributes.forEach((attribute, index) => {
-        if (t.isJSXAttribute(attribute) && t.isJSXIdentifier(attribute.name)) {
-          if (attribute.name.name === 'isFullWidth') {
-            if (
-              getJSXAttributeValue(attribute) === false ||
-              getBooleanValueFromScope(path, attribute.name.name) === false
-            ) {
-              // Remove the attribute if it's a boolean and false
-              attributes.splice(index, 1);
-            } else {
-              // Rename the attribute name from "isFullWidth" to "width"
-              attribute.name.name = 'width';
-
-              // Change the attribute value to a string literal with the value "full"
-              attribute.value = t.stringLiteral('full');
-            }
-          } else if (attribute.name.name === 'isInline') {
-            if (
-              getJSXAttributeValue(attribute) === false ||
-              getBooleanValueFromScope(path, attribute.name.name) === false
-            ) {
-              // Remove the attribute if it's a boolean and false
-              attributes.splice(index, 1);
-            } else {
-              // Rename the attribute name from "isInline" to "width"
-              attribute.name.name = 'width';
-
-              // Change the attribute value to a string literal with the value "fit"
-              attribute.value = t.stringLiteral('fit');
-            }
-          }
-        }
-      });
+      transformWidth(path, 'isFullWidth', 'full');
+      transformWidth(path, 'isInline', 'fit');
     },
   },
 });
